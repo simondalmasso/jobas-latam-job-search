@@ -15,7 +15,7 @@
     "test:live-browser": "node test/browser-live.mjs"
   },
   "devDependencies": {
-    "wrangler": "4.149.0"
+    "wrangler": "4.151.0"
   },
   "description": "Public job radar and personal job-search workspace for Argentina/LatAm.",
   "license": "MIT",
