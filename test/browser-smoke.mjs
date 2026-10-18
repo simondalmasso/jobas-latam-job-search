@@ -5,7 +5,7 @@ import path from "node:path";
 import {spawn} from "node:child_process";
 
 const HOST="127.0.0.1";
-const PORT=8799;
+let PORT=0;
 const CDP_PORT=9333;
 const root=path.resolve("public");
 const requests=[];
@@ -16,7 +16,7 @@ const mockFeed={
   version:"feed-v4",
   rankingModel:"generic-quality-v1",
   generatedAt:"2026-10-03T12:00:00Z",
-  jobsCount:2,
+  jobsCount:3,
   jobs:[
     {
       id:"qa-remote-1",lane:"REMOTO",title:"Customer Success Specialist",company:"Acme",
@@ -33,10 +33,21 @@ const mockFeed={
       url:"https://example.com/jobs/2",applicationMode:"cv",qualityScore:88,
       argentina:{score:100,label:"Argentina",reason:"QA"},scam:{score:95,label:"Buena señal",reasons:[]},
       pay:{raw:"No publicado",monthlyMin:null,monthlyMax:null,currency:"ARS"}
+    },
+    {
+      id:"qa-contract-1",lane:"REMOTO",title:"AI Evaluation Contractor",company:"Sample Contract Co",
+      location:"Worldwide",description:"Contract evaluation tasks",category:"data-ai",
+      sourceName:"QA Source",sourceUrl:"https://example.com",sourceDetail:"https://example.com/jobs/3",
+      url:"https://example.com/jobs/3",applicationMode:"cv",engagementType:"contract",
+      engagementEvidence:"source",engagementLabel:"Contrato",qualityScore:87,
+      argentina:{score:82,label:"Worldwide",reason:"QA"},scam:{score:95,label:"Buena señal",reasons:[]},
+      pay:{raw:"USD 100 / hr",monthlyMin:16000,monthlyMax:16000,currency:"USD",estimateBasis:"160 h/mes"}
     }
   ],
   health:[],
-  discoverySources:[]
+  discoverySources:[
+    {name:"de/Recruiters",url:"https://www.derecruiters.com/#jobs",note:"Recruiter regional; navegación manual, sin scraping."}
+  ]
 };
 
 const MIME={
@@ -143,6 +154,7 @@ await new Promise((resolve,reject)=>{
   server.once("error",reject);
   server.listen(PORT,HOST,resolve);
 });
+PORT=server.address().port;
 
 const executable=chromePath();
 if(!executable){
@@ -206,6 +218,41 @@ try{
   await sleep(80);
   const tracked=await cdp.eval('JSON.parse(localStorage.getItem("jobas:in-progress:v1")||"[]").length');
   check("APPLICATION_TRACKING",tracked===1);
+  await cdp.eval('document.querySelector(\'[data-window-open="applications"]\').click()');
+  await sleep(50);
+  const beforeOutcome=await cdp.eval('({label:document.querySelector("#applicationsList [data-outcome-stage]")?.value,saved:localStorage.getItem("jobas:application-outcomes:v1")})');
+  check("OUTCOME_NOT_AUTO_SUBMITTED",beforeOutcome.label==="preparing"&&!beforeOutcome.saved);
+  await cdp.eval('(()=>{const row=document.querySelector("#applicationsList [data-memory-job]");row.querySelector("[data-outcome-stage]").value="contacted";row.querySelector("[data-outcome-date]").value=new Date().toISOString().slice(0,10);row.querySelector("[data-outcome-notes]").value="Contacto confirmado en prueba local";row.querySelector("[data-outcome-save]").click()})()');
+  await sleep(40);
+  const outcomeSaved=await cdp.eval('(()=>{const all=JSON.parse(localStorage.getItem("jobas:application-outcomes:v1")||"{}");return Object.values(all)[0]})()');
+  check("OUTCOME_LOCAL_ONLY",outcomeSaved?.stage==="contacted"&&outcomeSaved.notes==="Contacto confirmado en prueba local");
+  await cdp.eval('location.reload()');
+  await sleep(600);
+  await cdp.eval('document.querySelector(\'[data-window-open="applications"]\').click()');
+  const afterOutcome=await cdp.eval('({stage:document.querySelector("#applicationsList [data-outcome-stage]")?.value,notes:document.querySelector("#applicationsList [data-outcome-notes]")?.value})');
+  check("OUTCOME_PERSIST_RELOAD",afterOutcome.stage==="contacted"&&afterOutcome.notes==="Contacto confirmado en prueba local");
+  await cdp.eval('document.querySelector("#actionOffers").click()');
+  await sleep(50);
+  const originalCount=await cdp.eval('document.querySelectorAll("#feed .job").length');
+  await cdp.eval('(()=>{const s=document.querySelector("#specialtyFilter");s.value="data-annotation";s.dispatchEvent(new Event("change",{bubbles:true}))})()');
+  await sleep(30);
+  const specialty=await cdp.eval('({selected:document.querySelector("#specialtyFilter").value,total:document.querySelectorAll("#feed .job").length})');
+  await cdp.eval('(()=>{const s=document.querySelector("#specialtyFilter");s.value="";s.dispatchEvent(new Event("change",{bubbles:true}))})()');
+  await sleep(30);
+  const restoredCount=await cdp.eval('document.querySelectorAll("#feed .job").length');
+  check("AI_SPECIALTY_FILTER",specialty.selected==="data-annotation"&&specialty.total<=originalCount&&restoredCount===originalCount);
+  const sourceAttribution=await cdp.eval('document.querySelector(".source-attribution a")?.href');
+  check("REMOTE_LANDERS_ATTRIBUTION",sourceAttribution==="https://remotelanders.com/");
+  const recruiterLink=await cdp.eval('(()=>{const a=[...document.querySelectorAll("#discovery a")].find(x=>x.textContent.includes("de/Recruiters"));return {href:a?.href,note:a?.textContent}})()');
+  check("DERECRUITERS_MANUAL_ONLY_LINK",recruiterLink.href==="https://www.derecruiters.com/#jobs"&&/manual/i.test(recruiterLink.note)&&/scraping/i.test(recruiterLink.note));
+  await cdp.eval('document.querySelector("#freelanceOnly").click()');
+  await sleep(50);
+  const freelanceFilter=await cdp.eval('({pressed:document.querySelector("#freelanceOnly").getAttribute("aria-pressed"),count:document.querySelectorAll("#feed .job").length,allTagged:[...document.querySelectorAll("#feed .job")].every(card=>[...card.querySelectorAll(".meta .tag")].some(tag=>/Freelance|Contrato|Microjob/.test(tag.textContent)))})');
+  check("FREELANCE_FILTER",freelanceFilter.pressed==="true"&&freelanceFilter.count>0&&freelanceFilter.allTagged,JSON.stringify(freelanceFilter));
+  await cdp.eval('document.querySelector("#freelanceOnly").click()');
+  await sleep(40);
+  const afterFreelanceReset=await cdp.eval('document.querySelectorAll("#feed .job").length');
+  check("FREELANCE_FILTER_RESET",afterFreelanceReset===restoredCount);
 
   await cdp.eval('document.querySelector("#actionCoach").click()');
   await sleep(80);
@@ -255,6 +302,12 @@ try{
     selected:document.querySelector("#pennyProviderMode").value
   }))()`);
   check("PENNY_FREE_ROUTE",pennyReply.text.includes("Hola desde Penny gratis")&&pennyReply.calls.length===1&&pennyReply.calls[0].url==="https://openrouter.ai/api/v1/chat/completions"&&pennyReply.calls[0].body.model==="openrouter/free"&&pennyReply.selected==="openrouter"&&pennyReply.sharedKey==="sk-or-mocked-only");
+  // Application kit does not submit a job or call a JOBAS Worker to use AI.
+  await cdp.eval("(()=>{\n  document.querySelector(\"#actionOffers\").click();\n  document.querySelector(\"#q\").value=\"\";\n  document.querySelector(\"#q\").dispatchEvent(new Event(\"input\",{bubbles:true}));\n  document.querySelector(\"#feed .job [data-action=prepare]\").click();\n  const req=document.querySelector(\"#kitRequirements\");\n  req.value=\"CRM\\nPython\";\n  req.dispatchEvent(new Event(\"input\",{bubbles:true}));\n  document.querySelector(\"#kitExperience\").value=\"Atendí usuarios usando CRM\";\n  document.querySelector(\"#kitAnalyze\").click();\n  document.querySelector(\"#kitGenerate\").click();\n})()");
+  await sleep(220);
+  const kit=await cdp.eval("(()=>({\n  open:document.querySelector(\"#applicationKit\").open,\n  selected:document.querySelector(\"#coachJobSelect\").value,\n  analysis:document.querySelector(\"#kitAssessment\").textContent,\n  draft:document.querySelector(\"#kitOutput\").value,\n  status:document.querySelector(\"#kitStatus\").textContent,\n  requests:window.__pennyRequests\n}))()");
+  check("APPLICATION_KIT_OFFLINE_GAPS",kit.open&&kit.selected==="qa-remote-1"&&kit.analysis.includes("Declarado: CRM")&&kit.analysis.includes("Sin evidencia declarada: Python"));
+  check("APPLICATION_KIT_FREE_BROUSERSIDE",kit.draft.includes("Hola desde Penny gratis")&&kit.requests.length===2&&kit.requests[1].body.model==="openrouter/free"&&kit.requests[1].body.messages[0].content.includes("No inventes")&&/Borrador creado/.test(kit.status));
   await cdp.eval('document.querySelector("#pennyDisconnectOpenRouter").click()');
   const disconnected=await cdp.eval(`({
     openrouterKey:sessionStorage.getItem("jobas:openrouter:key:session"),
@@ -271,6 +324,10 @@ try{
   await sleep(120);
   const mobile=await cdp.eval('({scroll:document.documentElement.scrollWidth,width:innerWidth,profile:!document.querySelector("#profileWindow").hidden})');
   check("MOBILE_390",mobile.scroll<=mobile.width&&mobile.profile,"scroll="+mobile.scroll+" width="+mobile.width);
+
+  await cdp.eval('document.querySelector("#actionCoach").click();document.querySelector("#applicationKit").open=true');
+  const kitMobile=await cdp.eval('(()=>{const p=document.querySelector("#applicationKit"),r=p.getBoundingClientRect();return{open:p.open,right:r.right,width:r.width,viewport:innerWidth}})()');
+  check("APPLICATION_KIT_MOBILE_390",kitMobile.open&&kitMobile.right<=kitMobile.viewport+1&&kitMobile.width<=kitMobile.viewport);
 
   await cdp.send("Emulation.setDeviceMetricsOverride",{width:360,height:800,deviceScaleFactor:1,mobile:true,screenWidth:360,screenHeight:800});
   await sleep(120);
@@ -294,7 +351,7 @@ try{
 
 const required=[
   "PUBLIC_BROWSE_NO_PROFILE","PROFILE_CREATE","PROFILE_LOCAL_ONLY","FAVORITE","SAVE_SEARCH",
-  "APPLICATION_TRACKING","COACH_DISCONNECTED_STATE","NOTES_LOCAL","PAINT_READY","GAME_READY","PENNY_COMPACT",
+  "APPLICATION_TRACKING","OUTCOME_NOT_AUTO_SUBMITTED","OUTCOME_LOCAL_ONLY","OUTCOME_PERSIST_RELOAD","AI_SPECIALTY_FILTER","COACH_DISCONNECTED_STATE","NOTES_LOCAL","PAINT_READY","GAME_READY","PENNY_COMPACT",
   "PENNY_FREE_ROUTE","PENNY_COACH_SHARED_DISCONNECT","PENNY_HF_OPTIONAL","MOBILE_390","MOBILE_360","DESKTOP_1440","CONSOLE_ERRORS"
 ];
 if(required.some(x=>results.get(x)!==true))process.exitCode=1;

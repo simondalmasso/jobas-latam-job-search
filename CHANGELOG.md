@@ -4,6 +4,22 @@ All notable product changes to JOBAS are documented here.
 
 ## Unreleased
 
+- Added browser-local, manually confirmed application stages, contact dates, notes and follow-up suggestions; no automatic submissions or email access.
+- Added heuristic AI-training, annotation, evaluation and transcription filters over existing public opportunities (not employer-confirmed categories).
+- Extended deterministic unit and browser tests for both workflows; no extra backend, cloud inference or subscriptions.
+- Added a public Remote Landers contract feed with required attribution and original listing URLs; no paid API or new runtime dependency.
+- Added source-declared versus inferred freelance/contract/gig classification, browser filtering and read-only MCP discovery; manual marketplace links are explicitly not treated as imported feeds.
+- Corrected Himalayas epoch-second publication dates, honored its declared country restrictions, and normalized hourly salary ranges using slash-formatted units.
+- Corrected Jobicy compensation mapping to use its current salaryMin/salaryMax/salaryPeriod fields.
+- Added de/Recruiters as a manual-only regional discovery link; no scraping or ingestion due to its published terms.
+- Country-specific source restrictions now outrank conflicting broad keywords in a vacancy description; expired curated local listings remain excluded rather than being re-verified by assumption.
+
+### Application kit (PR candidate; not released)
+- Structured per-vacancy requirements check against declared profile skills/languages, clearly labeling missing **evidence** rather than claiming missing qualifications.
+- Editable CV positioning bullets and short application message/carta draft, generated only at user request using the same browser-owned `openrouter/free` route as Penny.
+- Requires the user to paste verified job requirements and any real accomplishments before drafting; no fabricated achievements, auto-application, PDF rewrite, new server or paid-model fallback.
+- The application kit stores no draft on the Worker or in browser persistence; optional AI sends disclosed fields directly to the user's provider.
+
 ## 1.1.2 — 2026-10-09 (Penny provider integration)
 
 - Penny uses the same user-owned OpenRouter connection as Coach, with `openrouter/free` as its non-billable default text-model router. It never silently falls back to paid models.

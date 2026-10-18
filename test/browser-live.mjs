@@ -140,6 +140,8 @@ try{
   check("LIVE_PENNY_PRESENT",await cdp.eval('!document.querySelector("#pennyWindow").hidden && document.querySelector(".penny-avatar").naturalWidth>0'));
   check("LIVE_PENNY_OPENROUTER_READY",await cdp.eval('document.querySelector("#pennyProviderMode").value==="openrouter" && /OpenRouter/.test(document.querySelector("#pennyProviderStatus").textContent) && !document.querySelector("#pennyConnectOpenRouter").hidden && document.querySelector("#pennyHfSettings").hidden'));
 
+  check("LIVE_APPLICATION_KIT_PRESENT",await cdp.eval('Boolean(document.querySelector("#applicationKit")&&document.querySelector("#kitAnalyze")&&document.querySelector("#kitGenerate")&&document.querySelector("#kitOutput"))');
+
   for(const [width,height,mobile] of [[390,844,true],[360,800,true],[1440,900,false]]){
     await cdp.send("Emulation.setDeviceMetricsOverride",{width,height,screenWidth:width,screenHeight:height,deviceScaleFactor:1,mobile});
     await sleep(175);

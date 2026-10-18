@@ -12,6 +12,10 @@ import {
 import { createUserMemory } from "./user-memory.js";
 import { personalFitScore, sortByPersonalFit } from "./fit.js";
 import { opportunityProvenance } from "./provenance.js";
+import { createOutcomeStore, OUTCOME_STAGES, followUpState } from "./application-outcomes.js";
+import { SPECIALTIES, specialtiesForJob, matchesSpecialty } from "./specialties.js";
+
+import {analyzeApplication,generateApplicationKit,parseRequirements} from "./application-kit.js";
 import { createPennyCredentialStore, sendPennyMessage, buildPennySystemPrompt } from "./penny.js";
 
 const $=s=>document.querySelector(s);
@@ -19,6 +23,7 @@ const $$=s=>[...document.querySelectorAll(s)];
 
 const PROFILE= createProfileStore();
 const MEMORY=createUserMemory();
+const OUTCOMES=createOutcomeStore();
 const CREDENTIALS=createCredentialStore();
 const SPEECH=createSpeechController();
 const PENNY_CREDENTIALS=createPennyCredentialStore();
@@ -30,6 +35,8 @@ const state={
   jobs:[],
   feed:null,
   category:"",
+  specialty:"",
+  freelanceOnly:false,
   knownPay:false,
   argOnly:true,
   mode:"remote",
@@ -141,6 +148,8 @@ function filtered(){
   return baseForMode().filter(j=>
     (!q||`${j.title} ${j.company} ${j.buyer||""} ${j.description||""}`.toLowerCase().includes(q)) &&
     (!state.category||j.category===state.category) &&
+    matchesSpecialty(j,state.specialty) &&
+    (!state.freelanceOnly||["freelance","contract","gig"].includes(j.engagementType)) &&
     (!state.knownPay||(j.pay?.monthlyMin||j.pay?.monthlyMax)) &&
     (!state.argOnly||!argentinaFilterApplies||j.argentina?.score>=80)
   );
@@ -250,6 +259,14 @@ function renderCategories(){
   $("#categories").innerHTML=cats.map(x=>`<button class="cat${x.id===state.category?" active":""}" data-cat="${esc(x.id)}">${esc(x.label)} · ${x.count}</button>`).join("");
 }
 
+function renderSpecialties(){
+  const menu=$("#specialtyFilter");
+  if(!menu)return;
+  const selected=state.specialty;
+  menu.innerHTML=Object.entries(SPECIALTIES).map(([key,label])=>
+    `<option value="${esc(key)}">${esc(label)}</option>`).join("");
+  menu.value=selected;
+}
 function renderJobActions(job){
   const inProgress=progressHas(job);
   const flow=applicationWorkflow(job,inProgress);
@@ -267,8 +284,8 @@ function renderJobActions(job){
 
 function renderFeed(){
   const jobs=filtered();
-  const label=state.personalized?"personalizadas":state.mode==="remote"?"remotas":state.mode==="local"?"locales":"en curso";
-  const note=state.personalized?"afinidad calculada en este navegador":state.mode==="progress"?"guardadas en este navegador":"ordenadas por calidad pública";
+  const label=state.freelanceOnly?"freelance / contratos":state.personalized?"personalizadas":state.mode==="remote"?"remotas":state.mode==="local"?"locales":"en curso";
+  const note=state.freelanceOnly?"solo tipos de trabajo detectados; verificá cada publicación":state.personalized?"afinidad calculada en este navegador":state.mode==="progress"?"guardadas en este navegador":"ordenadas por calidad pública";
   $("#summary").innerHTML=`<span class="pill">${jobs.length} ${label}</span><span class="pill">${note}</span>`;
   $("#feed").innerHTML=jobs.length?jobs.map(j=>`
     <article class="job" data-job-id="${esc(j.id||j.url||j.sourceDetail)}">
@@ -280,6 +297,8 @@ function renderFeed(){
           <span class="tag good">${esc(j.argentina?.label||"A verificar")}</span>
           <span class="tag">${esc(j.location||"Remote")}</span>
           <span class="tag pay">${esc(monthly(j))}</span>
+          ${["freelance","contract","gig"].includes(j.engagementType)?`<span class="tag">${esc(j.engagementLabel||"Freelance / contrato")}${j.engagementEvidence==="inferred"?" (estimado)":""}</span>`:""}
+          ${specialtiesForJob(j).map(x=>`<span class="tag">${esc(SPECIALTIES[x])} (estimado)</span>`).join("")}
         </div>
         <div class="why">
           <span>${state.personalized?`Afinidad local ${esc(personalFitScore(j,state.profile))}/100`:`Calidad pública ${esc(j.qualityScore??"—")}/100`}</span>
@@ -299,7 +318,26 @@ function findJob(id){
 
 function renderApplications(){
   const jobs=getProgressJobs();
-  $("#applicationsList").innerHTML=jobs.length?jobs.map(j=>memoryRow(j,"application")).join(""):'<div class="empty">Todavía no marcaste postulaciones.</div>';
+  $("#applicationsList").innerHTML=jobs.length?jobs.map(j=>{
+    const record=OUTCOMES.get(j);
+    const follow=followUpState(record);
+    const jobId=j.id||j.url||j.sourceDetail;
+    const options=Object.entries(OUTCOME_STAGES).map(([id,label])=>
+      `<option value="${esc(id)}"${record.stage===id?" selected":""}>${esc(label)}</option>`).join("");
+    return `<section class="memory-row outcome-row" data-memory-job="${esc(jobId)}">
+      <div><strong>${esc(j.title)}</strong><small>${esc(j.company)} · ${esc(j.location||"")}</small></div>
+      <div class="outcome-controls">
+        <label>Etapa manual<select data-outcome-stage aria-label="Etapa de ${esc(j.title)}">${options}</select></label>
+        <label>Fecha de contacto confirmado<input type="date" data-outcome-date value="${esc(record.contactDate||"")}" max="${new Date().toISOString().slice(0,10)}"></label>
+        <label>Notas privadas<textarea rows="2" maxlength="1200" data-outcome-notes placeholder="Resultado, contacto, próxima acción...">${esc(record.notes||"")}</textarea></label>
+        <span class="outcome-caution">${follow.due?"Pasaron al menos 10 días: evaluar seguimiento manual.":esc(follow.reason)}</span>
+        <div class="memory-actions">
+          <button class="classic-button" type="button" data-memory-open>Abrir</button>
+          <button class="classic-button" type="button" data-outcome-save>Guardar seguimiento</button>
+        </div>
+      </div>
+    </section>`;
+  }).join(""):'<div class="empty">Todavía no marcaste postulaciones.</div>';
 }
 function renderFavorites(){
   const jobs=MEMORY.favorites();
@@ -346,6 +384,49 @@ function selectedCoachJob(){
   const id=$("#coachJobSelect").value;
   return id?findJob(id):{};
 }
+function renderKitAssessment(){
+  const job=selectedCoachJob();
+  const result=analyzeApplication({profile:state.profile,job,requirements:$("#kitRequirements").value});
+  $("#kitJobLabel").textContent=job?.title
+    ?[job.title,job.company||"empresa no confirmada",job.source||"fuente no confirmada"].join(" — ")+" · verificá la vigencia"
+    :"Seleccioná un puesto; no se comprueba si la vacante sigue abierta.";
+  const known=result.known.map(r=>"Declarado: "+r.requirement+" → "+r.declaredEvidence.join(", "));
+  const unknown=result.unknown.map(r=>"Sin evidencia declarada: "+r.requirement);
+  $("#kitAssessment").textContent=result.requirementsCount
+    ?[...known,...unknown,result.caution].join("\n")
+    :"Pegá requisitos uno por línea. Las coincidencias se calculan sin IA; ausencia de evidencia no significa que te falte una habilidad.";
+}
+async function makeApplicationDraft(){
+  if(!requireProfile("preparar un borrador"))return;
+  const requirements=$("#kitRequirements").value;
+  if(!parseRequirements(requirements).length){
+    $("#kitStatus").textContent="Pegá requisitos reales de la vacante primero.";
+    $("#kitRequirements").focus();return;
+  }
+  const apiKey=CREDENTIALS.get();
+  if(!apiKey){
+    $("#kitStatus").textContent="Conectá tu propia cuenta OpenRouter arriba. No se enviaron datos.";
+    renderCoachProvider();return;
+  }
+  const button=$("#kitGenerate");button.disabled=true;
+  $("#kitStatus").textContent="Consultando OpenRouter directamente desde el navegador…";
+  $("#kitOutput").value="";$("#kitCopy").disabled=true;
+  try{
+    const draft=await generateApplicationKit({
+      apiKey,profile:state.profile,job:selectedCoachJob(),
+      requirements,experience:$("#kitExperience").value
+    });
+    $("#kitOutput").value=draft;
+    $("#kitCopy").disabled=false;
+    $("#kitStatus").textContent="Borrador creado; verificá cada dato. No se postuló ni se guardó en JOBAS.";
+  }catch(e){
+    const msg=String(e?.message||e);
+    $("#kitStatus").textContent=/429|quota|rate limit/i.test(msg)
+      ?"Cupo de OpenRouter agotado. No se cambió a un modelo pago."
+      :"No se pudo crear el borrador: "+msg;
+  }finally{button.disabled=false;}
+}
+
 function renderCoachProvider(){
   const connected=Boolean(CREDENTIALS.get());
   $("#coachProviderStatus").textContent=connected
@@ -401,7 +482,18 @@ function openCoachForJob(job,prepare=false){
   renderCoachJobs();
   if(job){
     $("#coachJobSelect").value=String(job.id||job.url||job.sourceDetail);
-    if(prepare)$("#coachInput").value=`Ayudame a preparar mi CV y mi presentación para ${job.title} en ${job.company}. Usá solo información real de mi perfil y marcá qué me falta.`;
+    if(prepare){
+      const select=$("#coachJobSelect");
+      const id=String(job.id||job.url||job.sourceDetail);
+      if(![...select.options].some(o=>o.value===id))select.add(new Option(job.title+" — "+job.company,id));
+      select.value=id;
+      $("#applicationKit").open=true;
+      $("#kitRequirements").value="";$("#kitExperience").value="";$("#kitOutput").value="";
+      $("#kitCopy").disabled=true;
+      $("#kitStatus").textContent="Pegá requisitos de la oferta para comparar y crear tu borrador.";
+      renderKitAssessment();
+      $("#kitRequirements").focus();
+    }
   }
 }
 
@@ -628,6 +720,12 @@ function wireEvents(){
   $$(".window-menubar [data-mode],#offersWindow [data-mode]").forEach(b=>b.addEventListener("click",()=>selectMode(b.dataset.mode)));
   $("#categories").addEventListener("click",e=>{const b=e.target.closest("[data-cat]");if(!b)return;state.category=b.dataset.cat;renderCategories();renderFeed();});
   $("#q").addEventListener("input",renderFeed);
+  $("#specialtyFilter").addEventListener("change",e=>{state.specialty=e.target.value;renderFeed();});
+  $("#freelanceOnly").addEventListener("click",()=>{
+    state.freelanceOnly=!state.freelanceOnly;
+    $("#freelanceOnly").setAttribute("aria-pressed",String(state.freelanceOnly));
+    renderFeed();
+  });
   $("#knownPay").onclick=()=>{state.knownPay=!state.knownPay;$("#knownPay").setAttribute("aria-pressed",String(state.knownPay));renderFeed();};
   $("#argOnly").onclick=()=>{state.argOnly=!state.argOnly;$("#argOnly").setAttribute("aria-pressed",String(state.argOnly));renderFeed();};
   $("#saveSearch").onclick=()=>{
@@ -655,7 +753,25 @@ function wireEvents(){
     }
   });
 
-  $("#applicationsList").addEventListener("click",handleMemoryClick);
+  $("#applicationsList").addEventListener("click",e=>{
+    const button=e.target.closest("[data-outcome-save]");
+    if(button){
+      const row=button.closest("[data-memory-job]");
+      const job=row&&findJob(row.dataset.memoryJob);
+      if(!job)return;
+      try{
+        const item=OUTCOMES.save(job,{
+          stage:row.querySelector("[data-outcome-stage]").value,
+          contactDate:row.querySelector("[data-outcome-date]").value,
+          notes:row.querySelector("[data-outcome-notes]").value
+        });
+        renderApplications();
+        toast(item.stage==="contacted"?"Contacto registrado manualmente.":"Seguimiento guardado solo en este navegador.");
+      }catch(err){toast("No se pudo guardar seguimiento: "+err.message,true);}
+      return;
+    }
+    handleMemoryClick(e);
+  });
   $("#favoritesList").addEventListener("click",handleMemoryClick);
   $("#searchesList").addEventListener("click",e=>{
     const row=e.target.closest("[data-search-id]");if(!row)return;
@@ -671,6 +787,30 @@ function wireEvents(){
   $("#addFolder").onclick=()=>{const name=$("#newFolderName").value.trim();if(!name)return;MEMORY.addFolder(name);$("#newFolderName").value="";renderFolders();};
   $("#foldersList").addEventListener("click",e=>{const card=e.target.closest("[data-folder-id]");if(!card)return;if(e.target.closest("[data-remove-folder]")){MEMORY.removeFolder(card.dataset.folderId);renderFolders();}});
 
+  $("#coachJobSelect").addEventListener("change",()=>{
+    $("#kitOutput").value="";$("#kitCopy").disabled=true;renderKitAssessment();
+  });
+  $("#kitAnalyze").onclick=renderKitAssessment;
+  $("#kitRequirements").addEventListener("input",()=>{
+    $("#kitOutput").value="";$("#kitCopy").disabled=true;renderKitAssessment();
+  });
+  $("#kitExperience").addEventListener("input",()=>{
+    $("#kitOutput").value="";$("#kitCopy").disabled=true;
+  });
+  $("#kitGenerate").onclick=makeApplicationDraft;
+  $("#kitOutput").addEventListener("input",()=>{
+    $("#kitCopy").disabled=!$("#kitOutput").value.trim();
+  });
+  $("#kitCopy").onclick=async()=>{
+    if(!$("#kitOutput").value.trim())return;
+    try{
+      await navigator.clipboard.writeText($("#kitOutput").value);
+      $("#kitStatus").textContent="Texto copiado. Revisalo y envialo vos.";
+    }catch{
+      $("#kitOutput").focus();$("#kitOutput").select();
+      $("#kitStatus").textContent="Copiá la selección manualmente (portapapeles no disponible).";
+    }
+  };
   $("#coachConnect").onclick=()=>connectOpenRouter("coach");
   $("#coachDisconnect").onclick=()=>{CREDENTIALS.clear();state.coachHistory=[];state.pennyHistory=[];renderCoachProvider();renderPennyProvider();toast("OpenRouter desconectado de Penny y Coach.");};
   $("#coachUseKey").onclick=()=>{
@@ -737,6 +877,7 @@ function tickClock(){
 async function boot(){
   wireEvents();
   renderProfile();
+  renderSpecialties();
   renderApplications();renderFavorites();renderSearches();renderFolders();renderCoachProvider();renderPennyProvider();
   tickClock();setInterval(tickClock,30000);
   await handleOAuthReturn();

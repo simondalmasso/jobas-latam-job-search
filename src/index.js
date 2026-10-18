@@ -116,6 +116,10 @@ function normalizeFinding(x,meta){
     expiresAt:x.expiresAt||null,
     evidence:Array.isArray(x.evidence)?x.evidence:[],
     tags:Array.isArray(x.tags)?x.tags:[],
+    locationRestrictions:Array.isArray(x.locationRestrictions)?x.locationRestrictions:null,
+    employmentType:x.employmentType||x.jobType||x.type||null,
+    engagementType:x.engagementType||null,
+    engagementEvidence:x.engagementEvidence||null,
     category:x.category||"other",
     pay:normalizePay(x)
   };

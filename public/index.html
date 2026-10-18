@@ -162,8 +162,11 @@
         <input id="q" type="search" placeholder="Buscar cargo, empresa o palabra..." autocomplete="off">
         <button id="knownPay" class="classic-button toggle" type="button" aria-pressed="false">$ pago publicado</button>
         <button id="argOnly" class="classic-button toggle" type="button" aria-pressed="true">Argentina compatible</button>
+        <label class="specialty-filter">Trabajo IA <select id="specialtyFilter" aria-label="Filtrar por especialidad de IA"><option value="">Todas las especialidades</option></select></label>
+        <button id="freelanceOnly" class="classic-button toggle" type="button" aria-pressed="false" title="Filtrar ofertas con tipo freelance, contrato o microjob detectado">Freelance / contratos / tareas</button>
         <button id="saveSearch" class="classic-button" type="button">Guardar búsqueda</button>
       </div>
+      <p class="source-attribution">Job data provided by <a href="https://remotelanders.com/" target="_blank" rel="noopener noreferrer">Remote Landers</a>. Los contratos con ubicación no declarada requieren confirmar elegibilidad antes de postular.</p>
       <div class="offers-layout">
         <aside class="category-panel">
           <div class="section-label">Categorías</div>
@@ -184,6 +187,7 @@
 
     <section class="retro-window memory-window" id="applicationsWindow" data-window="applications" hidden>
       <header class="window-titlebar"><span>Postulaciones</span><div class="window-controls"><button type="button" data-window-close="applications">×</button></div></header>
+      <p class="privacy-note">Las etapas y notas se guardan solo en este navegador. JOBAS no envía postulaciones ni mensajes: marcá «Contacté / postulé» solo cuando realmente lo hiciste.</p>
       <div class="memory-content" id="applicationsList"></div>
     </section>
 
@@ -273,6 +277,30 @@
           </select>
         </label>
       </div>
+
+            <details class="application-kit" id="applicationKit">
+        <summary>Kit de postulación · CV y mensaje</summary>
+        <div class="application-kit-body">
+          <p id="kitJobLabel" class="application-kit-note">Elegí un puesto o tocá PREPARAR CV desde el radar.</p>
+          <label>Requisitos verificados (uno por línea)
+            <textarea id="kitRequirements" rows="3" maxlength="5000" placeholder="CRM&#10;Inglés&#10;Atención al cliente"></textarea>
+          </label>
+          <label>Experiencia o logros REALES para utilizar (opcional)
+            <textarea id="kitExperience" rows="3" maxlength="4500" placeholder="Agregá sólo datos verdaderos que quieras enviar a tu proveedor IA."></textarea>
+          </label>
+          <div id="kitAssessment" class="application-kit-assessment" role="status" aria-live="polite">Pegá requisitos para analizar coincidencias declaradas sin IA.</div>
+          <div class="application-kit-actions">
+            <button class="classic-button" id="kitAnalyze" type="button">Analizar sin IA</button>
+            <button class="classic-button primary" id="kitGenerate" type="button">Crear borrador gratis</button>
+            <button class="classic-button" id="kitCopy" type="button" disabled>Copiar borrador</button>
+          </div>
+          <div class="application-kit-note" id="kitStatus" role="status" aria-live="polite">Sólo borradores editables. JOBAS no envía postulaciones.</div>
+          <label>Enfoque CV + mensaje/carta + verificaciones
+            <textarea id="kitOutput" rows="6" placeholder="El resultado aparecerá aquí; revisalo y corregilo antes de copiar."></textarea>
+          </label>
+          <p class="application-kit-note">OpenRouter <code>openrouter/free</code> se consulta directo desde tu navegador sólo al tocar Crear. No se sube el PDF ni se guarda el borrador en JOBAS. Nunca se certifica la vigencia de la vacante.</p>
+        </div>
+      </details>
 
       <div class="coach-messages" id="coachMessages" aria-live="polite">
         <div class="coach-message assistant">Conectá tu cuenta y elegí un puesto. Podemos practicar por texto o voz.</div>

@@ -15,6 +15,14 @@ const jobs=[
     url:"https://t.me/example/42",directUrl:"https://web.telegram.org/a/#-1001",
     applicationMode:"direct",qualityScore:75,argentina:{score:70,label:"A verificar"},
     pay:{raw:"USD 50",monthlyMin:null,monthlyMax:null,currency:"USD"}
+  },
+  {
+    id:"job-contract-1",lane:"REMOTO",title:"Python AI evaluator",company:"Example Contract Co",
+    location:"Worldwide",description:"Paid project-based AI evaluation",category:"data-ai",
+    url:"https://remotelanders.com/remote-jobs/example-contract",sourceName:"Remote Landers",
+    engagementType:"contract",engagementEvidence:"source",employmentType:"Contract",
+    applicationMode:"cv",qualityScore:82,argentina:{score:82,label:"Worldwide"},
+    pay:{raw:"USD 100 / hr",monthlyMin:16000,monthlyMax:16000,currency:"USD"}
   }
 ];
 
@@ -56,7 +64,7 @@ test("tools/list exposes public read-only JOBAS tools",async()=>{
   const r=await post({jsonrpc:"2.0",id:3,method:"tools/list",params:{}});
   const body=await r.json();
   const names=body.result.tools.map(x=>x.name);
-  for(const name of ["agent_bootstrap","jobas_status","list_jobs","search_jobs","inspect_job","rank_jobs","list_microjobs","list_sources","research_zero_cost_catalog","research_github_readme","research_github_file","skill_list","skill_route","skill_get","mcp_status"]){
+  for(const name of ["agent_bootstrap","jobas_status","list_jobs","search_jobs","inspect_job","rank_jobs","list_microjobs","list_freelance_opportunities","list_sources","research_zero_cost_catalog","research_github_readme","research_github_file","skill_list","skill_route","skill_get","mcp_status"]){
     assert.ok(names.includes(name),name);
   }
 });
@@ -110,6 +118,7 @@ test("first-class read-only MCP contract tools all return without mutating state
     ["inspect_job",{job_id:"job-remote-1"}],
     ["rank_jobs",{limit:10}],
     ["list_sources",{}],
+    ["list_freelance_opportunities",{limit:10}],
     ["mcp_status",{}]
   ];
   for(const [name,args] of cases){
@@ -135,4 +144,15 @@ test("MCP transport exposes no mutation methods and GET remains read-only forbid
   assert.equal(names.some(x=>/create|update|delete|apply|submit|send|write|save/i.test(x)),false);
   const get=await handleMcpRequest(new Request("https://jobas.example/mcp"),context);
   assert.equal(get.status,405);
+});
+
+test("MCP exposes contract and freelance opportunities separately from direct-contact microjobs",async()=>{
+  const r=await post({jsonrpc:"2.0",id:33,method:"tools/call",params:{name:"list_freelance_opportunities",arguments:{limit:10,include_inferred:false}}});
+  const body=await r.json();
+  assert.equal(body.result.isError,false);
+  assert.equal(body.result.structuredContent.count,1);
+  assert.equal(body.result.structuredContent.jobs[0].id,"job-contract-1");
+  assert.equal(body.result.structuredContent.jobs[0].engagementType,"contract");
+  const excluded=await post({jsonrpc:"2.0",id:34,method:"tools/call",params:{name:"list_freelance_opportunities",arguments:{engagement_type:"freelance",limit:10}}});
+  assert.equal((await excluded.json()).result.structuredContent.count,0);
 });

@@ -52,6 +52,12 @@ TXT/MD files are read in the browser.
 
 PDF and AI-assisted profile extraction are sent directly from the browser to the provider connected by the user **only after the user explicitly chooses AI processing**. JOBAS does not upload the CV to its Worker, KV or repository. Without an AI provider configured, manual profile entry remains available; automatic extraction from uploaded CV files is not available.
 
+## Application kit (candidate feature)
+
+An offline, local requirements-to-declared-skills comparison runs without a provider request. The user must supply verifiable job requirements. Unmatched requirements are labeled as *not evidenced in the stored profile*, never as confirmed missing qualifications. The full CV PDF is **not** sent when using the application kit.
+
+Only after an explicit **Crear borrador gratis** click does the browser send the profile's name, headline, target roles, declared skills/languages, selected job title/company/source/link, and user-entered requirements and experience to **OpenRouter directly** using `openrouter/free`. The Worker is not used for that inference. The draft is editable, in memory only, and is not sent to employers or stored by JOBAS. OpenRouter's own processing and retention terms apply; the candidate should omit sensitive experience they do not wish to disclose. The user remains responsible for reviewing every claim.
+
 ## Speech
 
 Voice input/output uses browser capabilities when available. If speech recognition is unsupported, the Coach remains usable by text. JOBAS does not run a transcription or text-to-speech service on its Worker.
@@ -67,3 +73,10 @@ Because provider credentials and CV payloads never transit JOBAS endpoints, norm
 ## Operational logs
 
 Cloudflare and other hosting/provider infrastructure may produce standard request and platform logs according to their own service configuration and policies. Do not treat JOBAS browser-local state as a server-side backup.
+
+
+## Manual application outcomes and AI specialty filters
+
+Application stages, contact dates and private notes are stored locally in the user's browser (\`jobas:application-outcomes:v1\`). Selecting a stage is explicit user input; JOBAS never infers that a CV or application was sent, never reads email to infer outcomes, and never performs automatic follow-up. Optional 10-day suggestions are computed locally from the contact date supplied by the user.
+
+AI-work specialty chips and filters are heuristic matches against public job titles, tags and descriptions. They do not constitute employer verification or a guarantee of suitability. No additional provider credentials, account backend, AI proxy, background requests or paid integration is introduced.
