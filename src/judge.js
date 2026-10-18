@@ -94,7 +94,7 @@ export function argentinaEligibility(job){
   const title=String(job.title||""),location=String(job.location||""),description=String(job.description||"");
   const all=title+" "+location+" "+description;
   const hardRestriction=/us only|usa only|united states only|canada only|europe only|uk only|north america(?: only|\b)|united states(?:,| and) canada|us(?:,| and) canada|must be based in the us|u\.s\. residents only|remote \(us|remote \(usa|remote \(north america/i;
-  if(hardRestriction.test(title)||((/united states|usa|u\.s\.|canada|north america|europe|united kingdom|\buk\b/i.test(location))&&!/argentina|latam|latin america|south america/i.test(location)))
+  if(hardRestriction.test(title)||hardRestriction.test(location)||((/united states|usa|u\.s\.|\bus\b|canada|north america|europe|united kingdom|\buk\b/i.test(location))&&!/argentina|latam|latin america|south america/i.test(location)))
     return{score:5,label:"No compatible",reason:"La publicación restringe la ubicación fuera de Argentina."};
   if(ARGENTINA_NEGATIVE.test(all)||
      /(?:except|excluding|exclude|not (?:available|hiring|eligible) in|outside of)\s+(?:the\s+)?argentina|argentina\s+(?:excluded|not eligible)/i.test(all))
