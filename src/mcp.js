@@ -1,4 +1,5 @@
 import { resolveApplicationMode } from "../public/workflow.js";
+import { classifyEngagement } from "./judge.js";
 
 const PROTOCOL_VERSION="2025-06-18";
 const SERVER_INFO={name:"JOBAS Public MCP",version:"1.0.0"};
@@ -70,7 +71,9 @@ const ZERO_COST_CATALOG=[
   {id:"exa",name:"Exa",url:"https://exa.ai",mode:"external-provider",reason:"Good research provider, but public server-side use requires provider access/credentials; not embedded."},
   {id:"parallel-search",name:"Parallel Search",url:"https://parallel.ai",mode:"external-provider",reason:"Useful client-side search capability; not embedded without provider access."},
   {id:"wolfram",name:"Wolfram",url:"https://www.wolfram.com",mode:"external-provider",reason:"Provider API requires its own access; JOBAS exposes no shared secret."},
-  {id:"github-client",name:"GitHub",url:"https://github.com",mode:"native-public-read",reason:"JOBAS exposes bounded public GitHub README/file reads without credentials."}
+  {id:"github-client",name:"GitHub",url:"https://github.com",mode:"native-public-read",reason:"JOBAS exposes bounded public GitHub README/file reads without credentials."},
+  {id:"remote-landers-api",name:"Remote Landers API",url:"https://remotelanders.com/api",mode:"native-public-read",reason:"Public no-auth contract feed consumed by JOBAS; attribution and original listing URLs are required."},
+  {id:"cloudflare-web-search",name:"Cloudflare Web Search API",url:"https://developers.cloudflare.com/web-search/",mode:"external-provider",reason:"Not integrated. It requires AI Gateway credits or a provider API key; no search calls or spend are enabled by JOBAS."}
 ];
 
 const TOOL_DEFS=[
@@ -91,6 +94,7 @@ const TOOL_DEFS=[
       lane:{type:"string",enum:["REMOTO","LOCAL"]},
       category:{type:"string",minLength:1},
       application_mode:{type:"string",enum:["cv","direct","platform"]},
+      engagement_type:{type:"string",enum:["freelance","contract","gig","employment","unknown"]},
       argentina_only:{type:"boolean"},
       known_pay:{type:"boolean"},
       limit:{type:"integer",minimum:1,maximum:100},
@@ -105,6 +109,7 @@ const TOOL_DEFS=[
       lane:{type:"string",enum:["REMOTO","LOCAL"]},
       category:{type:"string",minLength:1},
       application_mode:{type:"string",enum:["cv","direct","platform"]},
+      engagement_type:{type:"string",enum:["freelance","contract","gig","employment","unknown"]},
       argentina_only:{type:"boolean"},
       known_pay:{type:"boolean"},
       limit:{type:"integer",minimum:1,maximum:100}
@@ -122,6 +127,7 @@ const TOOL_DEFS=[
       lane:{type:"string",enum:["REMOTO","LOCAL"]},
       category:{type:"string",minLength:1},
       application_mode:{type:"string",enum:["cv","direct","platform"]},
+      engagement_type:{type:"string",enum:["freelance","contract","gig","employment","unknown"]},
       argentina_only:{type:"boolean"},
       known_pay:{type:"boolean"},
       limit:{type:"integer",minimum:1,maximum:100}
@@ -135,6 +141,18 @@ const TOOL_DEFS=[
       category:{type:"string",minLength:1},
       argentina_only:{type:"boolean"},
       known_pay:{type:"boolean"},
+      limit:{type:"integer",minimum:1,maximum:100}
+    },additionalProperties:false}
+  },
+  {
+    name:"list_freelance_opportunities",
+    description:"List freelance, contract and microjob opportunities already present in the public feed. Source-declared types are preferred; inferred types are labeled and can be excluded. Read-only.",
+    inputSchema:{type:"object",properties:{
+      lane:{type:"string",enum:["REMOTO","LOCAL"]},
+      engagement_type:{type:"string",enum:["freelance","contract","gig"]},
+      argentina_only:{type:"boolean"},
+      known_pay:{type:"boolean"},
+      include_inferred:{type:"boolean"},
       limit:{type:"integer",minimum:1,maximum:100}
     },additionalProperties:false}
   },
@@ -213,12 +231,13 @@ function requireString(value){
 }
 function knownPay(job){return job?.pay?.monthlyMin!=null||job?.pay?.monthlyMax!=null;}
 function applicationMode(job){return job?.applicationMode||resolveApplicationMode(job);}
-function presentJob(job){return {...job,applicationMode:applicationMode(job)};}
+function presentJob(job){return {...job,...classifyEngagement(job),applicationMode:applicationMode(job)};}
 function filterJobs(feed,args={}){
   let jobs=Array.isArray(feed?.jobs)?feed.jobs:[];
   if(args.lane)jobs=jobs.filter(j=>String(j.lane||"").toUpperCase()===args.lane);
   if(args.category)jobs=jobs.filter(j=>j.category===args.category);
   if(args.application_mode)jobs=jobs.filter(j=>applicationMode(j)===args.application_mode);
+  if(args.engagement_type)jobs=jobs.filter(j=>classifyEngagement(j).engagementType===args.engagement_type);
   if(args.argentina_only===true)jobs=jobs.filter(j=>Number(j?.argentina?.score||0)>=80);
   if(args.known_pay===true)jobs=jobs.filter(knownPay);
   return jobs;
@@ -234,7 +253,8 @@ function counts(feed){
     total:jobs.length,
     remote:jobs.filter(j=>String(j.lane||"").toUpperCase()==="REMOTO").length,
     local:jobs.filter(j=>String(j.lane||"").toUpperCase()==="LOCAL").length,
-    microjobs:jobs.filter(j=>applicationMode(j)!=="cv").length
+    microjobs:jobs.filter(j=>applicationMode(j)!=="cv").length,
+    freelanceOpportunities:jobs.filter(j=>["freelance","contract","gig"].includes(classifyEngagement(j).engagementType)).length
   };
 }
 function safeRepo(repo){
@@ -323,11 +343,13 @@ async function callTool(name,args,context){
   if(name==="agent_bootstrap"){
     const limit=intArg(args.limit,8,1,20),ranked=filterJobs(feed,{argentina_only:true}).slice().sort((a,b)=>(Number(b.qualityScore)||0)-(Number(a.qualityScore)||0));
     const micro=filterJobs(feed,{}).filter(j=>applicationMode(j)!=="cv").slice().sort((a,b)=>(Number(b.qualityScore)||0)-(Number(a.qualityScore)||0));
+    const freelance=filterJobs(feed,{}).filter(j=>["freelance","contract","gig"].includes(classifyEngagement(j).engagementType)).slice().sort((a,b)=>(Number(b.qualityScore)||0)-(Number(a.qualityScore)||0));
     return{
       service:"JOBAS",endpoint:"/mcp",public:true,auth:false,readOnly:true,
       generatedAt:feed?.generatedAt||null,counts:counts(feed),
       top:ranked.slice(0,limit).map(presentJob),microjobs:micro.slice(0,limit).map(presentJob),
-      next:["search_jobs","inspect_job","list_microjobs","skill_route","skill_get"],
+      freelanceOpportunities:freelance.slice(0,limit).map(presentJob),
+      next:["search_jobs","inspect_job","list_microjobs","list_freelance_opportunities","skill_route","skill_get"],
       note:"Stateless/on-demand MCP. Server ordering is generic public quality, never candidate fit. No MCP hourly polling or background loop."
     };
   }
@@ -349,6 +371,15 @@ async function callTool(name,args,context){
   }
   if(name==="list_microjobs"){
     const jobs=filterJobs(feed,args).filter(j=>applicationMode(j)!=="cv");
+    return paginate(jobs,{...args,offset:0});
+  }
+  if(name==="list_freelance_opportunities"){
+    const includeInferred=args.include_inferred!==false;
+    const jobs=filterJobs(feed,args).filter(j=>{
+      const type=classifyEngagement(j);
+      return ["freelance","contract","gig"].includes(type.engagementType)&&
+        (includeInferred||type.engagementEvidence==="source");
+    }).sort((a,b)=>(Number(b.qualityScore)||0)-(Number(a.qualityScore)||0));
     return paginate(jobs,{...args,offset:0});
   }
   throw new Error("UNKNOWN_TOOL");

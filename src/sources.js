@@ -9,32 +9,66 @@ export const SOURCE_REGISTRY={
   himalayas:{name:"Himalayas",trust:91,workerFee:false,kind:"api",homepage:"https://himalayas.app/jobs"},
   jobicy:{name:"Jobicy",trust:84,workerFee:false,kind:"api",homepage:"https://jobicy.com/jobs"},
   wwr:{name:"We Work Remotely",trust:90,workerFee:false,kind:"rss",homepage:"https://weworkremotely.com/"},
-  carryer:{name:"Carryer Tech",trust:88,workerFee:false,kind:"js-feed",homepage:"https://jobs.carryer.tech/"}
+  carryer:{name:"Carryer Tech",trust:88,workerFee:false,kind:"js-feed",homepage:"https://jobs.carryer.tech/"},
+  remotelanders:{name:"Remote Landers",trust:90,workerFee:null,kind:"api",homepage:"https://remotelanders.com/"}
 };
 export const DISCOVERY_SOURCES=[
   {name:"Dynamite Jobs",url:"https://dynamitejobs.com/location/remote-jobs-in-latinamerica",note:"Curado, remoto y con salarios públicos frecuentes.",workerFee:false},
   {name:"Remote.co",url:"https://remote.co/remote-jobs/",note:"Bolsa remota general.",workerFee:false},
   {name:"Turing",url:"https://work.turing.com/jobs",note:"Sin cargo para candidatos; más orientado a perfiles técnicos/IA.",workerFee:false},
   {name:"micro1",url:"https://www.micro1-jobs.com/",note:"Roles remotos y proyectos de IA; verificar elegibilidad por vacante.",workerFee:false},
-  {name:"Twine",url:"https://www.twine.net/jobs",note:"Marketplace freelance; revisar comisiones/condiciones del proyecto.",workerFee:null},
+  {name:"Twine",url:"https://www.twine.net/jobs",note:"Marketplace freelance; búsqueda manual, no importada al feed. Revisar comisiones/condiciones.",workerFee:null},
   {name:"Wellfound",url:"https://wellfound.com/jobs",note:"Startups y remoto.",workerFee:false},
   {name:"Revelo",url:"https://www.revelo.com/",note:"Talento LatAm para compañías remotas.",workerFee:false},
-  {name:"Jobfound",url:"https://jobfound.org/",note:"Agregador; verificar ubicación y enlace final.",workerFee:null}
+  {name:"Jobfound",url:"https://jobfound.org/",note:"Agregador; verificar ubicación y enlace final.",workerFee:null},
+  {name:"de/Recruiters",url:"https://www.derecruiters.com/#jobs",note:"Recruiter tech con roles en Argentina/LATAM; no es una bolsa exclusivamente freelance. Solo navegación manual: sus términos prohíben scraping; JOBAS no importa ni verifica estas vacantes.",workerFee:null},
+  {name:"Workana",url:"https://www.workana.com/jobs",note:"Marketplace freelance de LatAm. Búsqueda manual; JOBAS no importa ni verifica estas ofertas.",workerFee:null},
+  {name:"Upwork",url:"https://www.upwork.com/nx/search/jobs/",note:"Marketplace global. Búsqueda manual; requiere cuenta y sus condiciones aplican.",workerFee:null},
+  {name:"Freelancer.com",url:"https://www.freelancer.com/jobs/",note:"Proyectos por encargo. Búsqueda manual; revisar costos de propuestas y condiciones.",workerFee:null},
+  {name:"Contra",url:"https://contra.com/opportunities",note:"Oportunidades para independientes. Búsqueda manual; no se importa el feed.",workerFee:null},
+  {name:"PeoplePerHour",url:"https://www.peopleperhour.com/freelance-jobs",note:"Proyectos freelance. Búsqueda manual; verificar país, presupuesto y comisiones.",workerFee:null},
+  {name:"Guru",url:"https://www.guru.com/d/jobs/",note:"Marketplace de proyectos. Búsqueda manual; JOBAS no verifica sus publicaciones.",workerFee:null},
+  {name:"micro1 — AI tasks",url:"https://www.micro1-jobs.com/",note:"Proyectos de expertos y entrenamiento IA. Búsqueda manual; verificar requisitos y elegibilidad.",workerFee:null},
+  {name:"Outlier",url:"https://outlier.ai/",note:"Oportunidades de evaluación y entrenamiento IA. Búsqueda manual; confirmar país y disponibilidad.",workerFee:null},
+  {name:"CrowdGen by Appen",url:"https://crowdgen.com/",note:"Tareas de datos y evaluación. Búsqueda manual; verificar pago y requisitos por proyecto.",workerFee:null},
+  {name:"OneForma",url:"https://www.oneforma.com/jobs/",note:"Proyectos de datos, idioma y evaluación IA. Búsqueda manual; confirmar elegibilidad.",workerFee:null},
+  {name:"RWS TrainAI",url:"https://www.rws.com/artificial-intelligence/train-ai/",note:"Proyectos de datos lingüísticos y entrenamiento IA. Búsqueda manual; no se importa el feed.",workerFee:null},
+  {name:"TELUS Digital AI Community",url:"https://www.telusdigital.com/careers/ai-community",note:"Tareas de evaluación y datos. Búsqueda manual; revisar requisitos del país.",workerFee:null}
 ];
 export function cleanHtml(x=""){return String(x).replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<[^>]+>/g," ").replace(/&nbsp;|&#160;/g," ").replace(/&amp;/g,"&").replace(/&#39;|&apos;/g,"'").replace(/&quot;/g,'"').replace(/&ndash;|&#8211;/g,"–").replace(/&mdash;|&#8212;/g,"—").replace(/\s+/g," ").trim();}
 export function safeUrl(x="",base){try{const raw=String(x).replace(/&(?:amp|#0*38|#x0*26);/gi,"&");const u=new URL(raw,base);return u.protocol==="https:"?u.href:"";}catch{return"";}}
 async function get(url,type="json"){const r=await fetch(url,{headers:{"user-agent":UA,"accept":type==="json"?"application/json":"text/html,application/rss+xml,text/xml"}});if(!r.ok)throw new Error(`${r.status} ${r.statusText}`);return type==="json"?r.json():r.text();}
 export function normalizePublicationDate(value){
-  if(!value)return null;
-  const timestamp=new Date(value).getTime();
+  if(value===null||value===undefined||value==="")return null;
+  const numeric=typeof value==="number"||(typeof value==="string"&&/^\d{10,13}$/.test(value.trim()))?Number(value):NaN;
+  const timestamp=Number.isFinite(numeric)?new Date(numeric<1e12?numeric*1000:numeric).getTime():new Date(value).getTime();
   return Number.isFinite(timestamp)?new Date(timestamp).toISOString():null;
 }
-function baseJob(source,x){const meta=SOURCE_REGISTRY[source];return{id:`${source}:${x.id||x.guid||x.slug||x.url||crypto.randomUUID()}`,source,sourceName:meta.name,sourceTrust:meta.trust,workerFee:meta.workerFee,sourceUrl:meta.homepage,title:String(x.title||"").trim(),company:String(x.company||"").trim(),location:String(x.location||"Remote").trim(),description:cleanHtml(x.description||"").slice(0,MAX_DESCRIPTION),url:safeUrl(x.url||"",meta.homepage),publishedAt:normalizePublicationDate(x.publishedAt),tags:Array.isArray(x.tags)?x.tags.slice(0,16):[],worldwide:!!x.worldwide,pay:x.pay||normalizeMonthlyPay({}),sourceDetail:x.sourceDetail||null};}
+function baseJob(source,x){const meta=SOURCE_REGISTRY[source];return{id:`${source}:${x.id||x.guid||x.slug||x.url||crypto.randomUUID()}`,source,sourceName:meta.name,sourceTrust:meta.trust,workerFee:meta.workerFee,sourceUrl:meta.homepage,title:String(x.title||"").trim(),company:String(x.company||"").trim(),location:String(x.location||"Remote").trim(),description:cleanHtml(x.description||"").slice(0,MAX_DESCRIPTION),url:safeUrl(x.url||"",meta.homepage),publishedAt:normalizePublicationDate(x.publishedAt),tags:Array.isArray(x.tags)?x.tags.slice(0,16):[],worldwide:!!x.worldwide,locationRestrictions:Array.isArray(x.locationRestrictions)?x.locationRestrictions:null,employmentType:x.employmentType||x.jobType||x.type||null,engagementType:x.engagementType||null,engagementEvidence:x.engagementEvidence||null,pay:x.pay||normalizeMonthlyPay({}),sourceDetail:x.sourceDetail||null};}
 function keep(job){return!!(job.title&&job.company&&job.url)&&(!job.argentina||job.argentina.score>10)&&(!job.scam||job.scam.score>=35);}
-export function parseSalaryText(text=""){const s=cleanHtml(text);let m=s.match(/(?:USD\s*|US\$\s*|\$\s*)([\d,.]+)\s*(?:-|–|—|to)\s*(?:USD\s*|US\$\s*|\$\s*)?([\d,.]+)\s*(?:per\s*)?(hour|hr|week|month|year|annual)/i);if(m){const p=/hour|hr/i.test(m[3])?"hourly":/week/i.test(m[3])?"weekly":/month/i.test(m[3])?"monthly":"annual";return normalizeMonthlyPay({min:Number(m[1].replace(/,/g,"")),max:Number(m[2].replace(/,/g,"")),currency:"USD",period:p,raw:m[0]});}m=s.match(/(?:USD\s*|US\$\s*|\$\s*)([\d,.]+)\s*(?:per\s*)?(hour|hr|week|month|year|annual)/i);if(!m)return normalizeMonthlyPay({raw:"No publicado"});const p=/hour|hr/i.test(m[2])?"hourly":/week/i.test(m[2])?"weekly":/month/i.test(m[2])?"monthly":"annual",n=Number(m[1].replace(/,/g,""));return normalizeMonthlyPay({min:n,max:n,currency:"USD",period:p,raw:m[0]});}
+export function parseSalaryText(text=""){
+  const s=cleanHtml(text);
+  const range=s.match(/(?:USD\s*|US\$\s*|\$\s*)([\d,.]+)\s*(k)?\s*(?:-|–|—|to)\s*(?:USD\s*|US\$\s*|\$\s*)?([\d,.]+)\s*(k)?\s*(?:per\s*|\/\s*)?(hour|hr|week|month|year|annual|yr)\b/i);
+  if(range){
+    const first=Number(range[1].replace(/,/g,""));
+    const second=Number(range[3].replace(/,/g,""));
+    const firstK=Boolean(range[2]);
+    const secondK=Boolean(range[4])||(!range[4]&&firstK&&second<1000);
+    const period=/hour|hr/i.test(range[5])?"hourly":/week/i.test(range[5])?"weekly":/month/i.test(range[5])?"monthly":"annual";
+    return normalizeMonthlyPay({
+      min:first*(firstK?1000:1),max:second*(secondK?1000:1),
+      currency:"USD",period,raw:range[0]
+    });
+  }
+  const single=s.match(/(?:USD\s*|US\$\s*|\$\s*)([\d,.]+)\s*(k)?\s*(?:per\s*|\/\s*)?(hour|hr|week|month|year|annual|yr)\b/i);
+  if(!single)return normalizeMonthlyPay({raw:"No publicado"});
+  const period=/hour|hr/i.test(single[3])?"hourly":/week/i.test(single[3])?"weekly":/month/i.test(single[3])?"monthly":"annual";
+  const amount=Number(single[1].replace(/,/g,""))*(single[2]?1000:1);
+  return normalizeMonthlyPay({min:amount,max:amount,currency:"USD",period,raw:single[0]});
+}
 function parseShortSpanishDate(text){if(!text)return null;const months={ene:0,feb:1,mar:2,abr:3,may:4,jun:5,jul:6,ago:7,sept:8,sep:8,oct:9,nov:10,dic:11},m=String(text).toLowerCase().match(/(\d{1,2})\s+(ene|feb|mar|abr|may|jun|jul|ago|sept|sep|oct|nov|dic)/);if(!m)return null;const now=new Date();let d=new Date(Date.UTC(now.getUTCFullYear(),months[m[2]],Number(m[1])));if(d.getTime()>now.getTime()+7*86400000)d=new Date(Date.UTC(now.getUTCFullYear()-1,months[m[2]],Number(m[1])));return d.toISOString();}
 export async function fetchWeRemoto(){const html=await get("https://www.weremoto.com/","text"),articles=html.match(/<article\b[\s\S]*?<\/article>/gi)||[];return articles.map((item,i)=>{const titleMatch=item.match(/<h3[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i),companyMatch=item.match(/<h3[\s\S]*?<\/h3><p[^>]*>([\s\S]*?)<\/p>/i),locationMatch=item.match(/<span[^>]*class="[^"]*truncate text-xs[^"]*"[^>]*>([\s\S]*?)<\/span>/i),dateMatch=item.match(/<span[^>]*class="[^"]*text-xs[^"]*"[^>]*>(\d{1,2}\s+[A-Za-záéíóúñ]+)<\/span>/i),bodyMatch=item.match(/<div class="article-body[^"]*"[^>]*>([\s\S]*?)<\/div>/i),applyMatch=item.match(/<a href="([^"]+)"[^>]*target="_blank"[^>]*>Aplicar<\/a>/i),rel=titleMatch?.[1]||"",listingUrl=safeUrl(rel,"https://www.weremoto.com/"),applyUrl=safeUrl(applyMatch?.[1],"https://www.weremoto.com/")||listingUrl,description=cleanHtml(bodyMatch?.[1]);return finalizeJob(baseJob("weremoto",{id:rel||String(i),title:cleanHtml(titleMatch?.[2]),company:cleanHtml(companyMatch?.[1]),location:cleanHtml(locationMatch?.[1])||"Remote (LATAM)",description,url:applyUrl,publishedAt:parseShortSpanishDate(dateMatch?.[1]),tags:["LatAm","remote"],worldwide:/worldwide/i.test(description),pay:parseSalaryText(description),sourceDetail:listingUrl}));}).filter(keep);}
-export async function fetchFreehire(){const url="https://freehire.me/api/v1/agent/jobs/search?regions=latam&work_mode=remote&posted_within_days=21&limit=60&offset=0&semantic_ratio=0&include_description=true&description_format=text",data=await get(url);return(data.data||[]).map(x=>finalizeJob(baseJob("freehire",{id:x.public_slug,title:x.title,company:x.company,location:x.location||"Remote LATAM",description:x.description,url:x.url,publishedAt:x.posted_at||x.date,tags:[x.category,x.seniority,...(x.skills||[])].filter(Boolean),worldwide:(x.regions||[]).includes("global"),pay:parseSalaryText(x.salary_text||x.description||""),sourceDetail:`https://freehire.me/jobs/${x.public_slug}`}))).filter(keep);}
+export async function fetchFreehire(){const url="https://freehire.me/api/v1/agent/jobs/search?regions=latam&work_mode=remote&posted_within_days=21&limit=60&offset=0&semantic_ratio=0&include_description=true&description_format=text",data=await get(url);return(data.data||[]).map(x=>finalizeJob(baseJob("freehire",{id:x.public_slug,title:x.title,company:x.company,location:x.location||"Remote LATAM",description:x.description,url:x.url,publishedAt:x.posted_at||x.date,tags:[x.category,x.seniority,...(x.skills||[])].filter(Boolean),worldwide:(x.regions||[]).includes("global"),employmentType:x.employment_type||x.job_type||null,pay:parseSalaryText(x.salary_text||x.description||""),sourceDetail:`https://freehire.me/jobs/${x.public_slug}`}))).filter(keep);}
 
 function parseCarryerPay(text=""){
   const raw=cleanHtml(text);
@@ -88,11 +122,46 @@ export async function fetchCarryer(){
     }));
   }).filter(keep);
 }
-export async function fetchRemoteOK(){const data=await get("https://remoteok.com/api");return data.slice(1,180).map(x=>finalizeJob(baseJob("remoteok",{id:x.id||x.slug,title:x.position,company:x.company,location:x.location||"Remote",description:x.description,url:x.url,publishedAt:x.date,tags:x.tags||[],worldwide:/worldwide|anywhere/i.test(x.location||""),pay:normalizeMonthlyPay({min:x.salary_min,max:x.salary_max,currency:"USD",period:"annual"})}))).filter(keep);}
-export async function fetchRemotive(){const data=await get("https://remotive.com/api/remote-jobs?limit=160");return(data.jobs||[]).map(x=>finalizeJob(baseJob("remotive",{id:x.id,title:x.title,company:x.company_name,location:x.candidate_required_location||"Remote",description:x.description,url:x.url,publishedAt:x.publication_date,tags:x.tags||[],worldwide:/worldwide|anywhere/i.test(x.candidate_required_location||""),pay:parseSalaryText(x.salary)}))).filter(keep);}
-export async function fetchHimalayas(){const data=await get("https://himalayas.app/jobs/api?limit=40");return(data.jobs||[]).map(x=>finalizeJob(baseJob("himalayas",{id:x.guid,title:x.title,company:x.companyName,location:(x.locationRestrictions||[]).join(", ")||"Worldwide",description:x.description||x.excerpt,url:x.applicationLink,publishedAt:x.pubDate,tags:[...(x.categories||[]),x.seniority].filter(Boolean),worldwide:!(x.locationRestrictions||[]).length,pay:normalizeMonthlyPay({min:x.minSalary,max:x.maxSalary,currency:x.currency||"USD",period:x.salaryPeriod||"annual"})}))).filter(keep);}
-export async function fetchJobicy(){const data=await get("https://jobicy.com/api/v2/remote-jobs?count=120");return(data.jobs||[]).map(x=>finalizeJob(baseJob("jobicy",{id:x.id,title:x.jobTitle,company:x.companyName,location:x.jobGeo||"Remote",description:x.jobDescription,url:x.url,publishedAt:x.pubDate,tags:[x.jobIndustry,x.jobType].filter(Boolean),worldwide:/anywhere|worldwide|global/i.test(x.jobGeo||""),pay:normalizeMonthlyPay({min:x.annualSalaryMin,max:x.annualSalaryMax,currency:x.salaryCurrency||"USD",period:"annual"})}))).filter(keep);}
+export async function fetchRemoteOK(){const data=await get("https://remoteok.com/api");return data.slice(1,180).map(x=>finalizeJob(baseJob("remoteok",{id:x.id||x.slug,title:x.position,company:x.company,location:x.location||"Remote",description:x.description,url:x.url,publishedAt:x.date,tags:x.tags||[],worldwide:/worldwide|anywhere/i.test(x.location||""),employmentType:x.job_type||null,pay:normalizeMonthlyPay({min:x.salary_min,max:x.salary_max,currency:"USD",period:"annual"})}))).filter(keep);}
+export async function fetchRemotive(){const data=await get("https://remotive.com/api/remote-jobs?limit=160");return(data.jobs||[]).map(x=>finalizeJob(baseJob("remotive",{id:x.id,title:x.title,company:x.company_name,location:x.candidate_required_location||"Remote",description:x.description,url:x.url,publishedAt:x.publication_date,tags:x.tags||[],worldwide:/worldwide|anywhere/i.test(x.candidate_required_location||""),employmentType:x.job_type||null,pay:parseSalaryText(x.salary)}))).filter(keep);}
+export async function fetchHimalayas(){const data=await get("https://himalayas.app/jobs/api?limit=20");return(data.jobs||[]).map(x=>finalizeJob(baseJob("himalayas",{id:x.guid,title:x.title,company:x.companyName,location:(x.locationRestrictions||[]).join(", ")||"Worldwide",description:x.description||x.excerpt,url:x.applicationLink,publishedAt:x.pubDate,tags:[...(x.categories||[]),...(x.parentCategories||[]),...(Array.isArray(x.seniority)?x.seniority:[]),x.employmentType].filter(Boolean),worldwide:!(x.locationRestrictions||[]).length,locationRestrictions:x.locationRestrictions||[],employmentType:x.employmentType,pay:normalizeMonthlyPay({min:x.minSalary,max:x.maxSalary,currency:x.currency||"USD",period:x.salaryPeriod||"annual",raw:x.salaryText||"No publicado"}),sourceDetail:x.applicationLink||x.guid}))).filter(keep);}
+export function normalizeRemoteLandersJob(x){
+  const tags=[x.category,...(Array.isArray(x.subtags)?x.subtags:[]),x.level].filter(Boolean);
+  const location=String(x.location||"Remote / A verificar");
+  const description=[
+    x.category,
+    ...(Array.isArray(x.subtags)?x.subtags:[]),
+    x.level?"Nivel declarado: "+x.level:"",
+    x.type?"Tipo de contratación declarado: "+x.type:"",
+    x.salary?"Compensación publicada: "+x.salary:"",
+    location.toLowerCase()==="not stated"?"La publicación no declara elegibilidad geográfica; confirmarla antes de postular.":""
+  ].filter(Boolean).join(". ");
+  return finalizeJob(baseJob("remotelanders",{
+    id:x.slug||x.url,title:x.title,company:x.company,location,description,url:x.url,
+    publishedAt:x.postedDate,tags,worldwide:/worldwide|anywhere/i.test(location),
+    employmentType:x.type||null,engagementType:"contract",engagementEvidence:"source",
+    pay:parseSalaryText(x.salary||""),sourceDetail:x.url
+  }));
+}
+export async function fetchRemoteLanders(){
+  const data=await get("https://api.remotelanders.workers.dev/api/jobs?type=Contract&limit=100&page=1");
+  return(data.jobs||[]).map(normalizeRemoteLandersJob).filter(keep);
+}
+export function normalizeJobicyJob(x){
+  const jobTypes=Array.isArray(x.jobType)?x.jobType:[x.jobType];
+  return finalizeJob(baseJob("jobicy",{
+    id:x.id,title:x.jobTitle,company:x.companyName,location:x.jobGeo||"Remote",
+    description:x.jobDescription,url:x.url,publishedAt:x.pubDate,
+    tags:[x.jobIndustry,...jobTypes].filter(Boolean),worldwide:/anywhere|worldwide|global/i.test(x.jobGeo||""),
+    employmentType:x.jobType||null,
+    pay:normalizeMonthlyPay({min:x.salaryMin,max:x.salaryMax,currency:x.salaryCurrency||"USD",period:x.salaryPeriod||"annual",raw:x.salaryText||"No publicado"})
+  }));
+}
+export async function fetchJobicy(){
+  const data=await get("https://jobicy.com/api/v2/remote-jobs?count=120");
+  return(data.jobs||[]).map(normalizeJobicyJob).filter(keep);
+}
 function xmlTag(item,tag){const m=item.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`,"i"));return m?cleanHtml(m[1].replace(/^<!\[CDATA\[|\]\]>$/g,"")):"";}
 export async function fetchWWR(){const xml=await get("https://weworkremotely.com/remote-jobs.rss","text"),items=xml.match(/<item>[\s\S]*?<\/item>/gi)||[];return items.slice(0,140).map(item=>{const titleRaw=xmlTag(item,"title"),parts=titleRaw.split(":"),company=parts.shift()||"",description=xmlTag(item,"description"),region=xmlTag(item,"region"),country=xmlTag(item,"country");return finalizeJob(baseJob("wwr",{id:xmlTag(item,"guid")||xmlTag(item,"link"),title:parts.join(":").trim()||titleRaw,company:company.trim()||"Empresa",location:[region,country].filter(Boolean).join(", ")||"Remote",description,url:xmlTag(item,"link"),publishedAt:xmlTag(item,"pubDate"),tags:[xmlTag(item,"category")].filter(Boolean),worldwide:/anywhere|worldwide/i.test(region),pay:parseSalaryText(description)}));}).filter(keep);}
 function canonicalJobKey(job){const norm=s=>String(s||"").toLowerCase().replace(/\bremote\b|\blatam\b|\bworldwide\b/g," ").replace(/[^a-z0-9áéíóúüñ]+/gi," ").replace(/\s+/g," ").trim();return`${norm(job.company)}|${norm(job.title)}`;}
-export async function buildFeed(limit=320){const startedAt=new Date().toISOString(),adapters=[["weremoto",fetchWeRemoto],["freehire",fetchFreehire],["carryer",fetchCarryer],["remoteok",fetchRemoteOK],["remotive",fetchRemotive],["himalayas",fetchHimalayas],["jobicy",fetchJobicy],["wwr",fetchWWR]],results=await Promise.allSettled(adapters.map(([,fn])=>fn())),health=[],all=[];results.forEach((r,i)=>{const id=adapters[i][0],meta=SOURCE_REGISTRY[id];if(r.status==="fulfilled"){health.push({source:id,name:meta.name,state:r.value.length?"healthy":"empty",jobs:r.value.length,lastCheck:new Date().toISOString(),url:meta.homepage});all.push(...r.value);}else health.push({source:id,name:meta.name,state:"degraded",jobs:0,lastCheck:new Date().toISOString(),url:meta.homepage,error:String(r.reason?.message||r.reason).slice(0,180)});});const byKey=new Map();for(const job of all){const key=canonicalJobKey(job),prev=byKey.get(key);if(!prev||job.qualityScore>prev.qualityScore)byKey.set(key,job);}const jobs=[...byKey.values()].sort((a,b)=>b.qualityScore-a.qualityScore||String(b.publishedAt||"").localeCompare(String(a.publishedAt||""))).slice(0,limit),counts={};for(const j of jobs)counts[j.category]=(counts[j.category]||0)+1;const categories=Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([id,count])=>({id,count}));return{version:"feed-v4",rankingModel:"generic-quality-v1",generatedAt:new Date().toISOString(),startedAt,jobsCount:jobs.length,jobs,categories,health,discoverySources:DISCOVERY_SOURCES,refreshPolicy:{cadence:"daily",cron:"15 10 * * *",sourceCallsPerRun:8}};}
+export async function buildFeed(limit=320){const startedAt=new Date().toISOString(),adapters=[["weremoto",fetchWeRemoto],["freehire",fetchFreehire],["carryer",fetchCarryer],["remoteok",fetchRemoteOK],["remotive",fetchRemotive],["himalayas",fetchHimalayas],["jobicy",fetchJobicy],["wwr",fetchWWR],["remotelanders",fetchRemoteLanders]],results=await Promise.allSettled(adapters.map(([,fn])=>fn())),health=[],all=[];results.forEach((r,i)=>{const id=adapters[i][0],meta=SOURCE_REGISTRY[id];if(r.status==="fulfilled"){health.push({source:id,name:meta.name,state:r.value.length?"healthy":"empty",jobs:r.value.length,lastCheck:new Date().toISOString(),url:meta.homepage});all.push(...r.value);}else health.push({source:id,name:meta.name,state:"degraded",jobs:0,lastCheck:new Date().toISOString(),url:meta.homepage,error:String(r.reason?.message||r.reason).slice(0,180)});});const byKey=new Map();for(const job of all){const key=canonicalJobKey(job),prev=byKey.get(key);if(!prev||job.qualityScore>prev.qualityScore)byKey.set(key,job);}const jobs=[...byKey.values()].sort((a,b)=>b.qualityScore-a.qualityScore||String(b.publishedAt||"").localeCompare(String(a.publishedAt||""))).slice(0,limit),counts={};for(const j of jobs)counts[j.category]=(counts[j.category]||0)+1;const categories=Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([id,count])=>({id,count}));return{version:"feed-v4",rankingModel:"generic-quality-v1",generatedAt:new Date().toISOString(),startedAt,jobsCount:jobs.length,jobs,categories,health,discoverySources:DISCOVERY_SOURCES,refreshPolicy:{cadence:"daily",cron:"15 10 * * *",sourceCallsPerRun:9}};}

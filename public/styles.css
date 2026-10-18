@@ -433,3 +433,28 @@ textarea{resize:vertical}
   .tic-grid{grid-template-columns:repeat(3,64px)}
   .tic-grid button{width:64px;height:64px}
 }
+
+
+/* Explicit user-confirmed application history; no account or backend. */
+.outcome-row{align-items:start;gap:8px;flex-wrap:wrap}
+.outcome-controls{flex:1 1 230px;min-width:0;display:grid;gap:6px}
+.outcome-controls label{display:grid;gap:2px;font-size:11px}
+.outcome-controls select,.outcome-controls input,.outcome-controls textarea{min-width:0;max-width:100%;width:100%;box-sizing:border-box}
+.outcome-controls textarea{resize:vertical}
+.outcome-caution{font-size:10px;color:#555}
+.specialty-filter{display:flex;align-items:center;gap:5px;font-size:11px;max-width:100%}
+.specialty-filter select{max-width:190px;min-height:28px}
+.source-attribution{font-size:10px;color:#444;margin:4px 8px}
+.source-attribution a{color:#173f78;text-decoration:underline}
+@media (max-width:390px){.specialty-filter{width:100%;justify-content:space-between}.specialty-filter select{max-width:65%}.outcome-controls{flex-basis:100%}}
+
+.application-kit{flex:0 1 auto;max-height:48%;overflow:auto;border-block:1px solid #777;background:#ececec}
+.application-kit>summary{cursor:pointer;font-weight:700;font-size:12px;padding:7px;background:#d7e1f2}
+.application-kit-body{display:grid;gap:6px;padding:8px}
+.application-kit-body label{display:grid;gap:3px;min-width:0;font-size:12px;font-weight:700}
+.application-kit-body textarea{width:100%;min-height:52px;max-width:100%;font-weight:400}
+.application-kit-assessment{white-space:pre-wrap;overflow-wrap:anywhere;max-height:104px;overflow:auto;border:1px solid #aaa;padding:6px;background:white;font-size:11px}
+.application-kit-actions{display:flex;gap:6px;flex-wrap:wrap}
+.application-kit-note{margin:0;font-size:11px;line-height:1.4;overflow-wrap:anywhere}
+.coach-window:has(.application-kit[open]) .coach-messages{min-height:85px}
+@media(max-width:700px){.application-kit{max-height:54%}.application-kit-actions button{min-height:31px}}

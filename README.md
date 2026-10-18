@@ -16,7 +16,7 @@ Latest published release: **[JOBAS v1.1.2](https://github.com/simondalmasso/joba
 
 The release passed [GitHub Actions CI](https://github.com/simondalmasso/jobas-latam-job-search/actions/runs/37961659852) and real Chromium checks against production at 1440px desktop and 390px/360px mobile. Public feed/health counts, LOCAL radar, browser-local saved state, and read-only MCP were verified. A [reproducible 46-link sample](docs/openai-codex-oss/FEED_SAMPLE_2026-10-09.json) records both reachable listings and inaccessible sources rather than implying that every vacancy is still open.
 
-**Scope:** early-stage OSS without established adoption metrics. Some job dates and Argentina eligibility remain uncertain; AI is optional and requires user-owned provider credentials. See the [current OSS readiness](docs/openai-codex-oss/READINESS.md) and the [dated product audit](docs/openai-codex-oss/PRODUCT_ACCEPTANCE_2026-10-09.md). Post-release source-data or documentation maintenance on `main` does not move historical release tags.
+**Scope:** early-stage OSS without established adoption metrics. Some job dates and Argentina eligibility remain uncertain; AI is optional and requires user-owned provider credentials. The local curated dataset currently has no live entries: its records expired on 2026-10-15 and remain excluded until source links are reverified. See the [current OSS readiness](docs/openai-codex-oss/READINESS.md) and the [dated product audit](docs/openai-codex-oss/PRODUCT_ACCEPTANCE_2026-10-09.md). Post-release source-data or documentation maintenance on `main` does not move historical release tags.
 
 ## What JOBAS does
 
@@ -26,10 +26,20 @@ JOBAS combines a public opportunity radar with a browser-local workspace for man
 - **Profile-driven search** without requiring an account.
 - **Application tracking**, favorites, saved searches and custom folders.
 - **Application workflow** that distinguishes traditional CV-based jobs from direct-contact opportunities.
+- **Application kit (unreleased candidate):** offline requirement/evidence matching and optional user-owned AI drafts for CV positioning and a short cover message, explicitly human-reviewed and never auto-submitted.
 - **AI interview Coach** with text and optional browser voice. **Penny** shares the user's OpenRouter connection and defaults to the free-model router; Hugging Face remains optional.
+- **Freelance / contract / microjob filter** with explicit-vs-inferred type labels and a read-only MCP discovery tool.
 - **Public read-only MCP** for agents and external tools.
 
 The product keeps infrastructure deliberately small: Cloudflare Workers + Static Assets + KV, source-backed curated data files and native browser storage for personal workspace state.
+
+## Freelance and contract discovery
+
+The development candidate adds a public, no-auth **Remote Landers contract feed** to the existing adapters. JOBAS preserves each Remote Landers listing URL and displays its required attribution. The browser can filter jobs identified as freelance, contract or task-based; inferred labels are marked as estimates. MCP clients can call the read-only tool **list_freelance_opportunities**.
+
+The Radar adicional also links to freelance marketplaces, AI-task programs and selected regional recruiters for manual discovery. Those links are **not imported feeds**: JOBAS does not claim to verify their individual listings. The product does not install browser crawlers, run research agents, use a paid search API, or add provider credentials to Cloudflare. See [Freelance discovery and integration audit](docs/FREELANCE-DISCOVERY.md).
+
+These are development-branch changes pending review; they are not part of the published v1.1.2 release.
 
 ## Product principles
 
@@ -39,6 +49,15 @@ The product keeps infrastructure deliberately small: Cloudflare Workers + Static
 4. **Low-cost runtime.** No hidden AI proxy, no hourly browser agents and no background inference in the Worker.
 5. **Traceable opportunities.** Source links, geography, compensation and freshness stay visible.
 6. **Small canonical surface.** GitHub `main` is authoritative.
+
+## Per-vacancy application kit (development branch)
+
+From any CV-based listing, select **PREPARAR CV** to open the Coach's application kit.
+Copy the offer's actual requirements, one per line, and (optionally) add accomplishments you can verify. **Analizar sin IA** compares those requirements to the explicitly declared skills/languages in the browser. Unmatched terms mean *no recorded evidence*, not proof the candidate lacks the skill.
+
+**Crear borrador gratis** sends only the displayed profile fields, pasted requirements and optional user-confirmed experience directly to the user's OpenRouter account using `openrouter/free`. It returns an **editable proposal** for CV bullet positioning and a brief cover message. It does not edit or export an actual PDF, confirm vacancies, send applications or certify ATS compatibility. The user must verify and send everything manually. Borradores are not persisted in JOBAS. The provider may rate-limit free use.
+
+This section describes **branch functionality pending review**, not a feature already present in published v1.1.2.
 
 ## AI Coach: cost boundary
 
@@ -122,8 +141,8 @@ Requirements:
 - npm
 
 ```bash
-git clone https://github.com/simondalmasso/jobas.git
-cd jobas
+git clone https://github.com/simondalmasso/jobas-latam-job-search.git
+cd jobas-latam-job-search
 npm ci
 npm run dev
 ```

@@ -42,20 +42,86 @@ export function classifyCategory(job){
   return"other";
 }
 
-export function argentinaEligibility(job){
-  const title=String(job.title||""),location=String(job.location||""),description=String(job.description||"");
-  const positive=`${location} ${description}`;
-  const hardRestriction=/us only|usa only|united states only|canada only|europe only|uk only|north america|must be based in the us|u\.s\. residents only/i;
-  if(hardRestriction.test(title)||((/united states|usa|u\.s\.|canada|north america|europe|united kingdom|\buk\b/i.test(location))&&!/argentina|latam|latin america|south america/i.test(location)))return{score:5,label:"No compatible",reason:"La publicación restringe la ubicación fuera de Argentina."};
-  if(ARGENTINA_NEGATIVE.test(`${title} ${location} ${description}`)||
-     /(?:except|excluding|exclude|not (?:available|hiring|eligible) in|outside of)\s+(?:the\s+)?argentina|argentina\s+(?:excluded|not eligible)/i.test(`${title} ${location} ${description}`))
-    return{score:5,label:"No compatible",reason:"La publicación restringe la ubicación."};
-  if(/argentina/i.test(positive))return{score:100,label:"Argentina",reason:"Menciona Argentina explícitamente."};
-  if(/latam|latin america|south america|americas/i.test(positive))return{score:92,label:"LatAm",reason:"Admite LatAm/Américas."};
-  if(/worldwide|anywhere|global/i.test(positive)||job.worldwide)return{score:82,label:"Worldwide",reason:"Publicación global/remota."};
-  return{score:48,label:"A verificar",reason:"No publica una restricción geográfica concluyente."};
+const ENGAGEMENT_LABELS=Object.freeze({
+  freelance:"Freelance",
+  contract:"Contrato",
+  gig:"Microjob / tarea",
+  employment:"Relación laboral",
+  unknown:"Tipo no indicado"
+});
+const ENGAGEMENT_TYPES=new Set(Object.keys(ENGAGEMENT_LABELS));
+
+export function classifyEngagement(job={}){
+  const known=String(job.engagementType||"").trim().toLowerCase();
+  if(ENGAGEMENT_TYPES.has(known)){
+    return{
+      engagementType:known,
+      engagementEvidence:known==="unknown"?"unknown":job.engagementEvidence==="source"?"source":"inferred",
+      engagementLabel:ENGAGEMENT_LABELS[known]
+    };
+  }
+  const structured=[job.employmentType,job.jobType].flatMap(v=>Array.isArray(v)?v:[v])
+    .filter(Boolean).join(" ").toLowerCase().replace(/[_-]+/g," ");
+  let type="";
+  if(/\bfreelanc(?:e|er|ing)\b|independent contractor/.test(structured))type="freelance";
+  else if(/\bcontractor\b|\bcontract\b|fixed term/.test(structured))type="contract";
+  else if(/\bmicrotask\b|\bmicrojob\b|\bgig\b|project based/.test(structured))type="gig";
+  else if(/full time|part time|permanent|employee|temporary|intern|volunteer/.test(structured))type="employment";
+  if(type)return{engagementType:type,engagementEvidence:"source",engagementLabel:ENGAGEMENT_LABELS[type]};
+
+  const title=String(job.title||"").toLowerCase();
+  const text=[job.title,job.description,...(Array.isArray(job.tags)?job.tags:[])].filter(Boolean).join(" ").toLowerCase();
+  if(/\bfreelanc(?:e|er|ing)\b|\bindependent contractor\b/.test(text))
+    type="freelance";
+  else if(/\bcontractor\b|\bcontract[- ]based\b|\bfixed[- ]term\b|^contract\b|\bcontract\s*[)\]]?\s*$/.test(title)||
+          /\bindependent contractor\b|\bcontract (?:role|position|work|basis|engagement)\b|\bshort[- ]term contract\b/.test(text))
+    type="contract";
+  else if(/\bmicro[- ]?tasks?\b|\bmicrojobs?\b|\bgig work\b|\bpaid tasks?\b|\bone[- ]off projects?\b|\btask[- ]based projects?\b/.test(text))
+    type="gig";
+  else if(/\bfull[- ]time\b|\bpart[- ]time\b|\bpermanent employee\b/.test(title))
+    type="employment";
+  else type="unknown";
+  return{
+    engagementType:type,
+    engagementEvidence:type==="unknown"?"unknown":"inferred",
+    engagementLabel:ENGAGEMENT_LABELS[type]
+  };
 }
 
+const COUNTRY_ONLY_LOCATION=/\b(?:colombia|brazil|brasil|mexico|méxico|chile|peru|perú|uruguay|paraguay|ecuador|bolivia|costa rica|panama|panamá|guatemala|honduras|el salvador|nicaragua|venezuela|dominican republic|puerto rico|france|germany|spain|italy|portugal|netherlands|belgium|sweden|norway|denmark|finland|poland|ireland|united kingdom|australia|new zealand|india|philippines|singapore|south africa|japan|china|indonesia|thailand|vietnam|malaysia|switzerland|austria|romania|czechia|czech republic|greece|turkey|israel|egypt|nigeria|kenya|ghana|pakistan|bangladesh|sri lanka|nepal|taiwan|south korea|hong kong)\b/i;
+
+export function argentinaEligibility(job){
+  const title=String(job.title||""),location=String(job.location||""),description=String(job.description||"");
+  const all=title+" "+location+" "+description;
+  const hardRestriction=/us only|usa only|united states only|canada only|europe only|uk only|north america(?: only|\b)|united states(?:,| and) canada|us(?:,| and) canada|must be based in the us|u\.s\. residents only|remote \(us|remote \(usa|remote \(north america/i;
+  if(hardRestriction.test(title)||((/united states|usa|u\.s\.|canada|north america|europe|united kingdom|\buk\b/i.test(location))&&!/argentina|latam|latin america|south america/i.test(location)))
+    return{score:5,label:"No compatible",reason:"La publicación restringe la ubicación fuera de Argentina."};
+  if(ARGENTINA_NEGATIVE.test(all)||
+     /(?:except|excluding|exclude|not (?:available|hiring|eligible) in|outside of)\s+(?:the\s+)?argentina|argentina\s+(?:excluded|not eligible)/i.test(all))
+    return{score:5,label:"No compatible",reason:"La publicación restringe la ubicación."};
+
+  // Structured source restrictions outrank marketing copy in titles/descriptions.
+  if(Array.isArray(job.locationRestrictions)){
+    const restrictions=job.locationRestrictions.map(x=>String(x||"")).filter(Boolean);
+    if(!restrictions.length)return{score:82,label:"Worldwide",reason:"La fuente declara que no hay restricciones geográficas."};
+    const declared=restrictions.join(" ");
+    if(/argentina/i.test(declared))return{score:100,label:"Argentina",reason:"Argentina figura en los países admitidos por la fuente."};
+    if(/latam|latin america|south america|americas/i.test(declared))return{score:92,label:"LatAm",reason:"La fuente declara elegibilidad regional."};
+    if(/worldwide|anywhere|global/i.test(declared))return{score:82,label:"Worldwide",reason:"La fuente declara elegibilidad global."};
+    return{score:5,label:"No compatible",reason:"La fuente limita la vacante a países específicos y Argentina no figura entre ellos."};
+  }
+
+  // Prefer the actual location field over unrelated keywords in the description.
+  if(/argentina/i.test(location))return{score:100,label:"Argentina",reason:"La ubicación declarada incluye Argentina."};
+  if(/latam|latin america|south america|americas/i.test(location))return{score:92,label:"LatAm",reason:"La ubicación declarada admite LatAm/Américas."};
+  if(/worldwide|anywhere|global/i.test(location)||job.worldwide)return{score:82,label:"Worldwide",reason:"La publicación declara alcance global/remoto."};
+  if(COUNTRY_ONLY_LOCATION.test(location))return{score:48,label:"A verificar",reason:"La fuente declara otra ubicación, pero no confirma si acepta candidatos de Argentina."};
+
+  if(/argentina/i.test(title+" "+description))return{score:100,label:"Argentina",reason:"La publicación menciona Argentina; confirmar las condiciones específicas."};
+  if(/latam|latin america|south america|americas/i.test(title+" "+description))return{score:92,label:"LatAm",reason:"La publicación menciona LatAm/Américas; confirmar las condiciones específicas."};
+  if(/worldwide|anywhere|global/i.test(title+" "+description))return{score:82,label:"Worldwide",reason:"La publicación menciona alcance global; confirmar las condiciones específicas."};
+  return{score:48,label:"A verificar",reason:"No publica una restricción geográfica concluyente."};
+}
 export function scamAssessment(job){
   const text=String(job.title||"")+" "+String(job.company||"")+" "+String(job.description||"");
   const hits=HIGH_RISK.filter(rx=>rx.test(text)).map(rx=>rx.source);
@@ -117,6 +183,7 @@ export function finalizeJob(job){
   const quality=qualityBreakdown(base);
   return{
     ...base,
+    ...classifyEngagement(base),
     argentina:argentinaEligibility(base),
     scam:scamAssessment(base),
     qualityScore:quality.score,
